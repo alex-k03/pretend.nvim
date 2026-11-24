@@ -1,0 +1,75 @@
+*pretend.txt*  Review commits as if you had just written them
+
+==============================================================================
+INTRODUCTION                                                    *pretend.nvim*
+
+Neovim front end for git-pretend: https://github.com/alex-k03/git-pretend
+
+While pretending, HEAD is at the older commit and the working tree holds the
+newer commit's files as uncommitted changes, so gitsigns, LSP, grep and diff
+views all work on the range. Stopping discards edits made meanwhile (saved as
+a patch in .git/pretend-discarded/ first) and goes back to where you were.
+
+==============================================================================
+COMMANDS                                                    *pretend-commands*
+
+                                                                    *:Pretend*
+:Pretend                Pick commits and start, or show the status while
+                        pretending.
+:Pretend {args}         Start with git-pretend's arguments: {commit},
+                        {old} {new}, {old}..{new} or {base}...{new}.
+:Pretend pick           Pick commits and start.
+:Pretend status         Show what you are pretending.
+:Pretend done           Stop pretending.
+
+==============================================================================
+LUA API                                                          *pretend-api*
+
+require("pretend").setup({opts})                             *pretend.setup()*
+    See |pretend-config|.
+
+require("pretend").toggle()                                 *pretend.toggle()*
+    Stop if pretending, else pick commits and start.
+
+require("pretend").start({args})                             *pretend.start()*
+    Start with a list of git-pretend arguments, e.g. `{ "main..." }`.
+
+require("pretend").done()                                     *pretend.done()*
+    Stop pretending.
+
+require("pretend").status()                                 *pretend.status()*
+    Returns a table with `base`, `target`, `prev_ref`, `prev_commit` and
+    `branch` (the branch you will go back to) while pretending, else nil.
+
+require("pretend").branch()                                 *pretend.branch()*
+    While pretending HEAD is detached, so a statusline's branch component
+    shows a commit hash. This returns the branch you will go back to (or the
+    commit, if you started detached), else nil. Cached.
+
+require("pretend").statusline()                         *pretend.statusline()*
+    "pretend" while pretending, else "". Cached.
+
+require("pretend").pick_commits({opts}, {cb})         *pretend.pick_commits()*
+    Pick one commit, or <Tab> two, and call {cb}(from, to, cwd) with the
+    range. Uses snacks.nvim if available, else |vim.ui.select()|. {opts} may
+    set `title`.
+
+==============================================================================
+CONFIGURATION                                                 *pretend-config*
+
+>lua
+    require("pretend").setup({
+        -- The git-pretend executable, or a command list to run it with
+        cmd = "git-pretend",
+        -- After starting: "auto" opens codediff.nvim or diffview.nvim if
+        -- installed, false opens nothing, or a function(state)
+        open = "auto",
+        -- After stopping: "auto" closes the codediff / diffview tabs opened
+        -- since starting (their diff is gone), false closes nothing, or a
+        -- function()
+        close = "auto",
+        -- Remind on startup when a previous session left you pretending
+        startup_notice = true,
+    })
+<
+ vim:tw=78:ts=8:ft=help:norl:
