@@ -10,7 +10,7 @@ and your usual diff view (codediff.nvim, diffview.nvim, `:Gdiff`...) shows the r
 changes". This plugin adds:
 
 - a commit picker: one commit, or <kbd>Tab</kbd> two for the range between them
-- opening a diff view when you start (codediff.nvim or diffview.nvim, if installed), and closing
+- if you want, opening a diff view when you start (codediff.nvim or diffview.nvim) and closing
   it when you stop
 - reloading buffers when you start and stop, and reverting unsaved edits made while pretending
 - a reminder on startup if a previous session left you pretending, and a statusline component
@@ -25,7 +25,7 @@ Neovim, or the other way round.
 - Neovim 0.10+
 - [git-pretend] on your `PATH` (or set `cmd`)
 - Optional: [snacks.nvim] for the picker (otherwise `vim.ui.select`, one commit only), and
-  [codediff.nvim] or [diffview.nvim] to open on start
+  [codediff.nvim] or [diffview.nvim] if you want `open` / `close`
 
 [snacks.nvim]: https://github.com/folke/snacks.nvim
 [codediff.nvim]: https://github.com/esmuellert/codediff.nvim
@@ -61,6 +61,13 @@ those edits as a patch in `.git/pretend-discarded/` first, and unsaved buffers a
 
 You can't start with unsaved buffers in the repository, since the checkout would put your edits
 on top of different code.
+
+### Seeing the changes
+
+Nothing opens by default: while pretending, whatever you already use to look at your changes
+shows the range. For example `:CodeDiff`, `:DiffviewOpen`, `:Git`, gitsigns' hunk navigation, or
+`git diff` in a terminal. To have one opened on start and closed on stop, set `open` and `close`
+(see below).
 
 ### Statusline
 
@@ -103,12 +110,12 @@ Defaults:
 require("pretend").setup({
     -- The git-pretend executable, or a command list to run it with
     cmd = "git-pretend",
-    -- After starting: "auto" opens codediff.nvim or diffview.nvim if installed,
-    -- false opens nothing, or a function(state)
-    open = "auto",
-    -- After stopping: "auto" closes the codediff / diffview tabs opened since starting
-    -- (their diff is gone), false closes nothing, or a function()
-    close = "auto",
+    -- After starting: false opens nothing, "auto" opens codediff.nvim or diffview.nvim
+    -- if installed, or a function(state)
+    open = false,
+    -- After stopping: false closes nothing, "auto" closes the codediff / diffview tabs
+    -- opened since starting (by `open` or by hand; their diff is gone), or a function()
+    close = false,
     -- Remind on startup when a previous session left you pretending
     startup_notice = true,
 })

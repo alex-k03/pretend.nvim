@@ -7,13 +7,13 @@ local M = {}
 
 ---@class pretend.Config
 ---@field cmd string|string[] The git-pretend executable, or a command list to run it with
----@field open "auto"|false|fun(state: pretend.State) What to open after starting ("auto": CodeDiff or Diffview if installed)
----@field close "auto"|false|fun() What to close after stopping ("auto": codediff / diffview tabs opened since starting)
+---@field open false|"auto"|fun(state: pretend.State) What to open after starting (off by default; "auto": CodeDiff or Diffview if installed)
+---@field close false|"auto"|fun() What to close after stopping (off by default; "auto": codediff / diffview tabs opened since starting)
 ---@field startup_notice boolean Remind on startup when a previous session left you pretending
 local defaults = {
     cmd = "git-pretend",
-    open = "auto",
-    close = "auto",
+    open = false,
+    close = false,
     startup_notice = true,
 }
 
@@ -133,15 +133,18 @@ local function refresh_statusline()
     end
 end
 
--- Tabs that existed before open_view, so close_view only closes tabs opened since
+-- Tabs that existed when pretending started, so close_view only closes tabs opened since
 local tabs_before ---@type table<integer, true>|nil
 local diff_filetypes = { ["codediff-explorer"] = true, DiffviewFiles = true }
 
-local function open_view(state)
+local function remember_tabs()
     tabs_before = {}
     for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
         tabs_before[tab] = true
     end
+end
+
+local function open_view(state)
     local open = M.config.open
     if type(open) == "function" then
         open(state)
@@ -155,7 +158,7 @@ local function open_view(state)
 end
 
 --- After stopping, the diff view shows changes that are gone. Closes the codediff / diffview tabs
---- opened since starting (opened by open_view, or by hand); other tabs are left alone.
+--- opened since starting (by `open`, or by hand); other tabs are left alone.
 local function close_view()
     local close = M.config.close
     if type(close) == "function" then
@@ -204,6 +207,7 @@ function M.start(args)
         vim.cmd.checktime() -- reload open buffers from the new working tree
         refresh_statusline()
         notify(output(res))
+        remember_tabs()
         open_view(current)
     end)
 end

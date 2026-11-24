@@ -10,6 +10,11 @@ newer commit's files as uncommitted changes, so gitsigns, LSP, grep and diff
 views all work on the range. Stopping discards edits made meanwhile (saved as
 a patch in .git/pretend-discarded/ first) and goes back to where you were.
 
+Nothing opens by default: while pretending, whatever you use to look at your
+changes (:CodeDiff, :DiffviewOpen, :Git, gitsigns) shows the range. See
+`open` and `close` in |pretend-config| to have a diff view opened on start
+and closed on stop.
+
 ==============================================================================
 COMMANDS                                                    *pretend-commands*
 
@@ -61,13 +66,13 @@ CONFIGURATION                                                 *pretend-config*
     require("pretend").setup({
         -- The git-pretend executable, or a command list to run it with
         cmd = "git-pretend",
-        -- After starting: "auto" opens codediff.nvim or diffview.nvim if
-        -- installed, false opens nothing, or a function(state)
-        open = "auto",
-        -- After stopping: "auto" closes the codediff / diffview tabs opened
-        -- since starting (their diff is gone), false closes nothing, or a
-        -- function()
-        close = "auto",
+        -- After starting: false opens nothing, "auto" opens codediff.nvim
+        -- or diffview.nvim if installed, or a function(state)
+        open = false,
+        -- After stopping: false closes nothing, "auto" closes the codediff /
+        -- diffview tabs opened since starting (by `open` or by hand; their
+        -- diff is gone), or a function()
+        close = false,
         -- Remind on startup when a previous session left you pretending
         startup_notice = true,
     })

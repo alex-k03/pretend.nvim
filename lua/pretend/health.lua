@@ -24,12 +24,17 @@ function M.check()
     else
         health.info("snacks.nvim not found: the picker falls back to vim.ui.select (one commit)")
     end
-    if vim.fn.exists(":CodeDiff") == 2 then
-        health.ok("codediff.nvim: opened when you start pretending")
-    elseif vim.fn.exists(":DiffviewOpen") == 2 then
-        health.ok("diffview.nvim: opened when you start pretending")
+    local view = vim.fn.exists(":CodeDiff") == 2 and "codediff.nvim"
+        or vim.fn.exists(":DiffviewOpen") == 2 and "diffview.nvim"
+    local open, close = pretend.config.open, pretend.config.close
+    if view then
+        health.ok(("%s found: `open` %s, `close` %s"):format(view,
+            open == "auto" and "opens it on start" or open and "is a function" or "is off",
+            close == "auto" and "closes it on stop" or close and "is a function" or "is off"))
+    elseif open == "auto" or close == "auto" then
+        health.warn("`open` or `close` is \"auto\", but neither codediff.nvim nor diffview.nvim is installed")
     else
-        health.info("No diff view found (codediff.nvim or diffview.nvim); `open` does nothing by default")
+        health.info("No diff view plugin found (codediff.nvim or diffview.nvim); `open` and `close` are off")
     end
 end
 
