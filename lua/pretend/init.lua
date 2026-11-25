@@ -1,8 +1,8 @@
 --- pretend.nvim: Neovim front end for git-pretend (https://github.com/alex-k03/git-pretend).
 ---
 --- git-pretend makes a range of commits look like uncommitted changes, so gitsigns, LSP, grep and
---- diff views all work on it. This plugin adds a commit picker, opens a diff view when you start,
---- and reloads buffers when you are done. All git work happens in the CLI.
+--- diff views all work on it. This plugin adds a commit picker, statusline helpers, and reloads
+--- buffers when you start and stop. All git work happens in the CLI.
 local M = {}
 
 ---@class pretend.Config
@@ -87,6 +87,21 @@ end
 
 local current ---@type pretend.State|nil
 
+---@param stdout string
+---@return pretend.State
+local function parse_state(stdout)
+    local state = {}
+    for line in stdout:gmatch("[^\n]+") do
+        local key, value = line:match("^(%S+) ?(.*)$")
+        if key then
+            state[(key:gsub("-", "_"))] = value
+        end
+    end
+    -- What git-pretend's `status --short` prints, without running it again
+    state.branch = state.prev_ref ~= "" and state.prev_ref:gsub("^refs/heads/", "") or state.prev_commit:sub(1, 7)
+    return state
+end
+
 --- What is being pretended in the current directory's repository, or nil.
 ---@return pretend.State|nil
 function M.status()
@@ -99,17 +114,8 @@ function M.status()
         current = nil
         return nil
     end
-    local state = {}
-    for line in res.stdout:gmatch("[^\n]+") do
-        local key, value = line:match("^(%S+) ?(.*)$")
-        if key then
-            state[(key:gsub("-", "_"))] = value
-        end
-    end
-    -- What git-pretend's `status --short` prints, without running it again
-    state.branch = state.prev_ref ~= "" and state.prev_ref:gsub("^refs/heads/", "") or state.prev_commit:sub(1, 7)
-    current = state
-    return state
+    current = parse_state(res.stdout)
+    return current
 end
 
 --- While pretending HEAD is detached, so a statusline's branch component shows a commit hash.
@@ -124,12 +130,29 @@ function M.statusline()
     return current and "pretend" or ""
 end
 
-local function refresh_statusline()
-    M.status()
+local function redraw_statusline()
     if package.loaded.lualine then
         require("lualine").refresh()
     else
         vim.cmd.redrawstatus()
+    end
+end
+
+local function refresh_statusline(cb)
+    local ok = pcall(vim.system, command({ "status", "--porcelain" }), { text = true, cwd = vim.fn.getcwd() }, function(res)
+        vim.schedule(function()
+            current = res.code == 0 and parse_state(res.stdout) or nil
+            redraw_statusline()
+            if cb then
+                cb(current)
+            end
+        end)
+    end)
+    if not ok then
+        current = nil
+        if cb then
+            cb(nil)
+        end
     end
 end
 
@@ -186,29 +209,39 @@ local function close_view()
     tabs_before = nil
 end
 
---- Starts pretending. args are git-pretend's: { "<commit>" }, { "<old>", "<new>" },
---- { "main..." }, ...
----@param args string[]
-function M.start(args)
+local function check_start_ready()
     local root = repo_root()
     if not root then
-        return notify("Not in a git repository", levels.WARN)
+        notify("Not in a git repository", levels.WARN)
+        return nil
     end
     -- The checkout rewrites files on disk, and unsaved edits would end up on top of the wrong code
     local dirty = modified_buffers(root)
     if #dirty > 0 then
         local names = vim.tbl_map(function(b) return vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":~:.") end, dirty)
-        return notify("Save or discard your unsaved changes first:\n" .. table.concat(names, "\n"), levels.WARN)
+        notify("Save or discard your unsaved changes first:\n" .. table.concat(names, "\n"), levels.WARN)
+        return nil
+    end
+    return root
+end
+
+--- Starts pretending. args are git-pretend's: { "<commit>" }, { "<old>", "<new>" },
+--- { "main..." }, ...
+---@param args string[]
+function M.start(args)
+    if not check_start_ready() then
+        return
     end
     run(args, function(res)
         if res.code ~= 0 then
             return notify(output(res), levels.ERROR)
         end
         vim.cmd.checktime() -- reload open buffers from the new working tree
-        refresh_statusline()
         notify(output(res))
-        remember_tabs()
-        open_view(current)
+        refresh_statusline(function(state)
+            remember_tabs()
+            open_view(state)
+        end)
     end)
 end
 
@@ -246,6 +279,9 @@ function M.pick_commits(opts, cb)
             title = title,
             confirm = function(picker)
                 local items = picker:selected({ fallback = true })
+                if #items == 0 then
+                    return
+                end
                 if #items > 2 then
                     return notify("Select one commit, or two for the range between them", levels.WARN)
                 end
@@ -262,8 +298,10 @@ function M.pick_commits(opts, cb)
         return
     end
 
-    local res = vim.system({ "git", "log", "--max-count=300", "--format=%h %ad %s", "--date=short" }, { text = true })
-        :wait()
+    local res = vim.system(
+        { "git", "log", "--max-count=300", "--format=%h %ad %s", "--date=short" },
+        { text = true, cwd = vim.fn.getcwd() }
+    ):wait()
     if res.code ~= 0 then
         return notify("git log failed: " .. vim.trim(res.stderr), levels.ERROR)
     end
@@ -277,7 +315,15 @@ end
 
 --- Picks commits and starts pretending.
 function M.pick()
-    M.pick_commits(nil, function(from, to) M.start({ from, to }) end)
+    if M.status() then
+        return notify("Already pretending; run :Pretend done first", levels.WARN)
+    end
+    if not check_start_ready() then
+        return
+    end
+    M.pick_commits(nil, function(from, to)
+        M.start(from == to .. "^" and { to } or { from, to })
+    end)
 end
 
 --- Done if pretending, else pick commits and start.
@@ -310,10 +356,14 @@ function M.command(args)
     end
 end
 
-function M.complete(arg_lead)
-    local items = { "done", "pick", "status" }
-    local res = vim.system({ "git", "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes", "refs/tags" },
-        { text = true }):wait()
+function M.complete(arg_lead, cmd_line)
+    local before = (cmd_line or ""):sub(1, #(cmd_line or "") - #arg_lead)
+    local is_first_arg = #vim.split(vim.trim(before), "%s+", { trimempty = true }) <= 1
+    local items = is_first_arg and { "done", "pick", "status" } or {}
+    local res = vim.system(
+        { "git", "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes", "refs/tags" },
+        { text = true, cwd = vim.fn.getcwd() }
+    ):wait()
     if res.code == 0 then
         vim.list_extend(items, vim.split(vim.trim(res.stdout), "\n", { trimempty = true }))
     end
@@ -328,15 +378,16 @@ function M.setup(opts)
     -- Pretending can start or stop outside Neovim (the CLI in a terminal), so check again
     vim.api.nvim_create_autocmd({ "FocusGained", "DirChanged" }, {
         group = group,
-        callback = function() vim.schedule(refresh_statusline) end,
+        callback = function() vim.schedule(function() refresh_statusline() end) end,
     })
 
     local function check_on_startup()
-        refresh_statusline()
-        if M.config.startup_notice and current then
-            notify(("Still pretending (HEAD %s, working tree %s). :Pretend done to stop."):format(
-                current.base:sub(1, 7), current.target:sub(1, 7)))
-        end
+        refresh_statusline(function(state)
+            if M.config.startup_notice and state then
+                notify(("Still pretending (HEAD %s, working tree %s). :Pretend done to stop."):format(
+                    state.base:sub(1, 7), state.target:sub(1, 7)))
+            end
+        end)
     end
     if vim.v.vim_did_enter == 1 then
         vim.schedule(check_on_startup)

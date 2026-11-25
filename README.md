@@ -2,7 +2,7 @@
 
 Neovim front end for [git-pretend]: review any range of commits as if you had just written it.
 
-<!-- TODO demo GIF: <leader>gv, picking two commits, gitsigns and codediff showing the range -->
+![pretend.nvim demo](demo/demo.gif)
 
 While pretending, `HEAD` is at the older commit and the working tree holds the newer one's files
 as uncommitted changes. So gitsigns marks every changed line, LSP and grep see the newer code,
