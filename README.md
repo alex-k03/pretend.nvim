@@ -1,6 +1,6 @@
 # pretend.nvim
 
-Neovim front end for [git-pretend]: review any range of commits as if you had just written it.
+Neovim front end for [git-pretend]: review your PR in the editor you already use, as if you had just written it.
 
 ![pretend.nvim demo](demo/demo.gif)
 
@@ -10,6 +10,8 @@ and your usual diff view (codediff.nvim, diffview.nvim, `:Gdiff`...) shows the r
 changes". This plugin adds:
 
 - a commit picker: one commit, or <kbd>Tab</kbd> two for the range between them
+- an optional in-buffer inline diff overlay showing deleted and previous versions of changed lines
+  right in your live buffer (also works on normal uncommitted changes)
 - if you want, opening a diff view when you start (codediff.nvim or diffview.nvim) and closing
   it when you stop
 - reloading buffers when you start and stop, and reverting unsaved edits made while pretending
@@ -24,8 +26,9 @@ Neovim, or the other way round.
 
 - Neovim 0.10+
 - [git-pretend] on your `PATH` (or set `cmd`)
-- Optional: [snacks.nvim] for the picker (otherwise `vim.ui.select`, one commit only), and
-  [codediff.nvim] or [diffview.nvim] if you want `open` / `close`
+- Optional: [snacks.nvim] for a commit picker with fuzzy search and diff previews (otherwise
+  uses a built-in floating picker with `<Tab>` two-commit range selection), and [codediff.nvim]
+  or [diffview.nvim] if you want `open` / `close`
 
 [snacks.nvim]: https://github.com/folke/snacks.nvim
 [codediff.nvim]: https://github.com/esmuellert/codediff.nvim
@@ -41,7 +44,8 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
     event = "VeryLazy", -- for the startup reminder and statusline
     opts = {},
     keys = {
-        { "<leader>gv", function() require("pretend").toggle() end, desc = "Pretend: pick commits, or stop" },
+        { "<leader>gp", function() require("pretend").toggle() end, desc = "Pretend: pick commits, or stop" },
+        { "<leader>go", function() require("pretend").toggle_overlay() end, desc = "Pretend: toggle inline diff overlay" },
     },
 }
 ```
@@ -53,8 +57,10 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 | `:Pretend` | pick commits (or show the status while pretending) |
 | `:Pretend main...` | anything git-pretend takes: `<commit>`, `<old> <new>`, `<old>..<new>`, `<base>...<new>` |
 | `:Pretend status` | what you are pretending |
+| `:Pretend overlay` | toggle the in-buffer inline diff overlay (old/deleted lines) |
 | `:Pretend done` | stop: discards the pretend changes and goes back |
 | `require("pretend").toggle()` | pick and start, or stop if pretending |
+| `require("pretend").toggle_overlay()` | toggle the inline diff overlay (works outside pretending too) |
 
 Pretending is for reading: stopping discards anything you edited meanwhile. git-pretend saves
 those edits as a patch in `.git/pretend-discarded/` first, and unsaved buffers are reverted.
@@ -110,6 +116,9 @@ Defaults:
 require("pretend").setup({
     -- The git-pretend executable, or a command list to run it with
     cmd = "git-pretend",
+    -- Automatically show the in-buffer inline diff overlay (previous/deleted lines) while
+    -- pretending; toggle anytime with :Pretend overlay or require("pretend").toggle_overlay()
+    overlay = false,
     -- After starting: false opens nothing, "auto" opens codediff.nvim or diffview.nvim
     -- if installed, or a function(state)
     open = false,

@@ -4,14 +4,17 @@
 --- diff views all work on it. This plugin adds a commit picker, statusline helpers, and reloads
 --- buffers when you start and stop. All git work happens in the CLI.
 local M = {}
+local overlay = require("pretend.overlay")
 
 ---@class pretend.Config
 ---@field cmd string|string[] The git-pretend executable, or a command list to run it with
+---@field overlay boolean Automatically show the inline diff overlay (previous/deleted lines) while pretending
 ---@field open false|"auto"|fun(state: pretend.State) What to open after starting (off by default; "auto": CodeDiff or Diffview if installed)
 ---@field close false|"auto"|fun() What to close after stopping (off by default; "auto": codediff / diffview tabs opened since starting)
 ---@field startup_notice boolean Remind on startup when a previous session left you pretending
 local defaults = {
     cmd = "git-pretend",
+    overlay = false,
     open = false,
     close = false,
     startup_notice = true,
@@ -142,6 +145,8 @@ local function refresh_statusline(cb)
     local ok = pcall(vim.system, command({ "status", "--porcelain" }), { text = true, cwd = vim.fn.getcwd() }, function(res)
         vim.schedule(function()
             current = res.code == 0 and parse_state(res.stdout) or nil
+            local root = (current or overlay.is_visible()) and repo_root() or nil
+            overlay.sync(current, root)
             redraw_statusline()
             if cb then
                 cb(current)
@@ -150,6 +155,7 @@ local function refresh_statusline(cb)
     end)
     if not ok then
         current = nil
+        overlay.sync(nil, nil)
         if cb then
             cb(nil)
         end
@@ -267,7 +273,7 @@ end
 
 --- Picks one or two commits from the git log. cb(from, to) gets git-pretend's arguments:
 --- one commit gives (commit^, commit), two give (older, newer). Uses the Snacks picker when
---- available (<Tab> to select two), else vim.ui.select (one commit).
+--- available, else the built-in floating picker (both support <Tab> to select two).
 ---@param opts? { title?: string }
 ---@param cb fun(from: string, to: string, cwd: string)
 function M.pick_commits(opts, cb)
@@ -298,19 +304,7 @@ function M.pick_commits(opts, cb)
         return
     end
 
-    local res = vim.system(
-        { "git", "log", "--max-count=300", "--format=%h %ad %s", "--date=short" },
-        { text = true, cwd = vim.fn.getcwd() }
-    ):wait()
-    if res.code ~= 0 then
-        return notify("git log failed: " .. vim.trim(res.stderr), levels.ERROR)
-    end
-    vim.ui.select(vim.split(vim.trim(res.stdout), "\n"), { prompt = title }, function(choice)
-        if choice then
-            local commit = choice:match("^%S+")
-            cb(commit .. "^", commit, vim.fn.getcwd())
-        end
-    end)
+    require("pretend.picker").pick({ title = title }, cb)
 end
 
 --- Picks commits and starts pretending.
@@ -335,7 +329,17 @@ function M.toggle()
     end
 end
 
---- :Pretend [<commit> | <old> <new> | <range> | pick | status | done]
+--- Toggles the inline diff overlay (previous/deleted lines in buffers; works while pretending
+--- and on normal uncommitted changes).
+function M.toggle_overlay()
+    local on = overlay.toggle(repo_root())
+    if on == nil then
+        return notify("Not in a git repository", levels.WARN)
+    end
+    notify("Inline diff overlay " .. (on and "on" or "off"))
+end
+
+--- :Pretend [<commit> | <old> <new> | <range> | pick | status | overlay | done]
 function M.command(args)
     if #args == 0 then
         if M.status() then
@@ -349,6 +353,8 @@ function M.command(args)
         M.done()
     elseif sub == "pick" then
         M.pick()
+    elseif sub == "overlay" then
+        M.toggle_overlay()
     elseif sub == "status" then
         run({ "status" }, function(res) notify(output(res)) end)
     else
@@ -359,7 +365,7 @@ end
 function M.complete(arg_lead, cmd_line)
     local before = (cmd_line or ""):sub(1, #(cmd_line or "") - #arg_lead)
     local is_first_arg = #vim.split(vim.trim(before), "%s+", { trimempty = true }) <= 1
-    local items = is_first_arg and { "done", "pick", "status" } or {}
+    local items = is_first_arg and { "done", "overlay", "pick", "status" } or {}
     local res = vim.system(
         { "git", "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes", "refs/tags" },
         { text = true, cwd = vim.fn.getcwd() }
@@ -373,6 +379,7 @@ end
 ---@param opts? pretend.Config
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
+    overlay.set_auto(M.config.overlay == true)
 
     local group = vim.api.nvim_create_augroup("pretend", { clear = true })
     -- Pretending can start or stop outside Neovim (the CLI in a terminal), so check again

@@ -15,10 +15,10 @@ Set BorderRadius 10
 Set TypingSpeed 50ms
 
 Hide
-Type "sh demo/setup.sh"
+Type "REPO=$PWD && sh demo/setup.sh"
 Enter
 Sleep 500ms
-Type "cd /tmp/pretend-nvim-demo && nvim src/server.py"
+Type 'cd /tmp/pretend-nvim-demo && nvim -c "set rtp^=$REPO" src/server.py'
 Enter
 Sleep 2s
 Show
@@ -37,6 +37,11 @@ Down
 Sleep 500ms
 Tab
 Sleep 1s
+Enter
+Sleep 2.5s
+
+# Toggle the in-buffer inline diff overlay to see previous/deleted lines
+Type ":Pretend overlay"
 Enter
 Sleep 3.5s
 

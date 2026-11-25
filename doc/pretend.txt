@@ -25,6 +25,8 @@ COMMANDS                                                    *pretend-commands*
                         {old} {new}, {old}..{new} or {base}...{new}.
 :Pretend pick           Pick commits and start.
 :Pretend status         Show what you are pretending.
+:Pretend overlay        Toggle the in-buffer inline diff overlay (shows
+                        previous and deleted lines as virtual lines).
 :Pretend done           Stop pretending.
 
 ==============================================================================
@@ -35,6 +37,11 @@ require("pretend").setup({opts})                             *pretend.setup()*
 
 require("pretend").toggle()                                 *pretend.toggle()*
     Stop if pretending, else pick commits and start.
+
+require("pretend").toggle_overlay()                 *pretend.toggle_overlay()*
+    Toggle the in-buffer inline diff overlay (shows previous and deleted lines
+    above changed lines). Works while pretending and on normal uncommitted
+    changes.
 
 require("pretend").start({args})                             *pretend.start()*
     Start with a list of git-pretend arguments, e.g. `{ "main..." }`.
@@ -56,8 +63,8 @@ require("pretend").statusline()                         *pretend.statusline()*
 
 require("pretend").pick_commits({opts}, {cb})         *pretend.pick_commits()*
     Pick one commit, or <Tab> two, and call {cb}(from, to, cwd) with the
-    range. Uses snacks.nvim if available, else |vim.ui.select()|. {opts} may
-    set `title`.
+    range. Uses snacks.nvim if available, else a built-in floating picker.
+    {opts} may set `title`.
 
 ==============================================================================
 CONFIGURATION                                                 *pretend-config*
@@ -66,6 +73,8 @@ CONFIGURATION                                                 *pretend-config*
     require("pretend").setup({
         -- The git-pretend executable, or a command list to run it with
         cmd = "git-pretend",
+        -- Automatically show the inline diff overlay while pretending
+        overlay = false,
         -- After starting: false opens nothing, "auto" opens codediff.nvim
         -- or diffview.nvim if installed, or a function(state)
         open = false,

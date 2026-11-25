@@ -20,9 +20,9 @@ function M.check()
 
     health.start("Optional")
     if pcall(require, "snacks") then
-        health.ok("snacks.nvim: commit picker with two-commit ranges")
+        health.ok("snacks.nvim: commit picker with diff preview")
     else
-        health.info("snacks.nvim not found: the picker falls back to vim.ui.select (one commit)")
+        health.info("snacks.nvim not found: using built-in floating commit picker (<Tab> two commits for a range)")
     end
     local view = vim.fn.exists(":CodeDiff") == 2 and "codediff.nvim"
         or vim.fn.exists(":DiffviewOpen") == 2 and "diffview.nvim"

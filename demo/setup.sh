@@ -19,8 +19,10 @@ export GIT_COMMITTER_EMAIL="alex@example.com"
 git init -q -b main
 
 cat <<'EOF' >src/server.py
+# TODO: add rate limiting
+
 def handle_request(user_id: str, path: str) -> dict:
-    return {"status": 200, "user": user_id, "path": path}
+    return {"status": 200, "path": path}
 EOF
 
 cat <<'EOF' >tests/test_server.py
@@ -63,7 +65,7 @@ limiter = TokenBucket(capacity=60)
 def handle_request(user_id: str, path: str) -> dict:
     if not limiter.allow(user_id):
         return {"status": 429, "error": "rate limit exceeded"}
-    return {"status": 200, "user": user_id, "path": path}
+    return {"status": 200, "user": user_id}
 EOF
 
 git add -A
