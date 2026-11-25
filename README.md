@@ -44,7 +44,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
     event = "VeryLazy", -- for the startup reminder and statusline
     opts = {},
     keys = {
-        { "<leader>gp", function() require("pretend").toggle() end, desc = "Pretend: pick commits, or stop" },
+        { "<leader>gv", function() require("pretend").toggle() end, desc = "Pretend: pick commits, or stop" },
         { "<leader>go", function() require("pretend").toggle_overlay() end, desc = "Pretend: toggle inline diff overlay" },
     },
 }
